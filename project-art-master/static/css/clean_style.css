@@ -1,0 +1,43 @@
+/* Clean Style for Art Gallery Interface */
+
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: #f8f8f8;
+}
+
+header {
+    background-color: #4A1A1A;
+    color: #FFD700;
+    padding: 20px;
+    text-align: center;
+}
+
+nav ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+nav ul li {
+    display: inline;
+    margin: 0 15px;
+}
+
+nav ul li a {
+    color: #D4AF37;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.art-images {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 10px;
+    padding: 20px;
+}
+
+.art-images img {
+    width: 100%;
+    border-radius: 8px;
+}
