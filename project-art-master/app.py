@@ -1,17 +1,23 @@
 import cv2
 import numpy as np
-from flask import Flask, render_template, request, jsonify
-import os
+import pymongo
 import base64
+import os
+from flask import Flask, render_template, request, jsonify
+from flask_cors import CORS
 
-# ---------------------- Database Connection ----------------------
-
-from pymongo import MongoClient
-
-# MongoDB connection string
-new_mongo_client = MongoClient("mongodb+srv://Karthik:karthik@cluster0.0fbrm.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
-new_db = new_mongo_client.get_database("Cluster0")  # Replace with your database name if needed
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
+
+# ---------------------- MongoDB Connection ----------------------
+MONGO_URI = "mongodb+srv://Karthik:karthik@cluster0.0fbrm.mongodb.net/"
+
+# Connect to MongoDB Atlas
+client = pymongo.MongoClient(MONGO_URI)
+db = client["art_gallery"]
+art_collection = db["artworks"]
+
+print("Connected to MongoDB Atlas!")
 
 # ---------------------- Helper Functions ----------------------
 def preprocess_image(image_path):
@@ -28,13 +34,11 @@ def extract_color_histogram(image):
 
 def find_most_similar_image(uploaded_image_data, dataset_image_paths):
     """Find the most similar image based on color histograms."""
-    # Preprocess the uploaded image
     np_array = np.frombuffer(uploaded_image_data, np.uint8)
     uploaded_image = cv2.imdecode(np_array, cv2.IMREAD_COLOR)
     uploaded_image = cv2.resize(uploaded_image, (224, 224))
     uploaded_hist = extract_color_histogram(uploaded_image)
 
-    # Compare against dataset images
     similarities = []
     for path in dataset_image_paths:
         dataset_image = preprocess_image(path)
@@ -56,14 +60,6 @@ def image_to_base64(image_path):
 
 # ---------------------- Routes ----------------------
 
-@app.route("/test_db")
-def test_db():
-    try:
-        new_db.command("ping")  # This will ping the database to check the connection
-        return "MongoDB connection successful!"
-    except Exception as e:
-        return f"Error connecting to MongoDB: {str(e)}"
-
 @app.route("/")
 def signup():
     """Render the Sign-Up Page."""
@@ -71,7 +67,7 @@ def signup():
 
 @app.route("/3d")
 def Threed():
-    """Render the Sign-Up Page."""
+    """Render the 3D Page."""
     return render_template("3d.html")
 
 @app.route("/home")
@@ -83,40 +79,40 @@ def home():
 def second():
     return render_template('second.html')
 
-@app.route("/index", methods=["GET", "POST"])
+@app.route("/upload", methods=["GET", "POST"])
 def upload_image():
-    """Handle image upload and similarity search."""
+    """Handle image upload, similarity search, and store metadata in MongoDB."""
     if request.method == "POST":
         uploaded_file = request.files.get("file")
         if uploaded_file:
             uploaded_image_data = uploaded_file.read()
             
             BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-            # Build the path to the images folder
             dataset_image_dir = os.path.join(BASE_DIR, 'static', 'images')
             dataset_image_paths = [
                 os.path.join(dataset_image_dir, img)
                 for img in os.listdir(dataset_image_dir)
                 if os.path.isfile(os.path.join(dataset_image_dir, img))
             ]
-            
+
             # Find the most similar image
             most_similar_image_path, similarity_score = find_most_similar_image(
                 uploaded_image_data, dataset_image_paths
             )
-            
-            # Check similarity threshold
-            similarity_threshold = 0.5  # Cosine similarity threshold (0 to 1)
-            if similarity_score < similarity_threshold:
-                message = f"Oops! No similar image found. Similarity score: {similarity_score:.2f}"
-                return jsonify({
-                    "below_threshold": True,
-                    "similarity_score": float(similarity_score)
-                })
+
+            # Store uploaded image metadata in MongoDB
+            uploaded_image_base64 = base64.b64encode(uploaded_image_data).decode('utf-8')
+            image_metadata = {
+                "filename": uploaded_file.filename,
+                "image_data": uploaded_image_base64,
+                "similarity_score": similarity_score
+            }
+            art_collection.insert_one(image_metadata)
+            print("Image metadata stored in MongoDB!")
 
             # Convert the matched image to Base64
             similar_image_base64 = image_to_base64(most_similar_image_path)
+
             return jsonify({
                 "most_similar_image": f"data:image/jpeg;base64,{similar_image_base64}",
                 "similarity_score": float(similarity_score)
@@ -124,10 +120,11 @@ def upload_image():
 
     return render_template("index.html")
 
-@app.route("/clean")
-def clean_interface():
-    """Render the Clean Interface Page."""
-    return render_template("clean_interface.html")
+@app.route("/get_images", methods=["GET"])
+def get_images():
+    """Fetch stored artworks from MongoDB."""
+    artworks = list(art_collection.find({}, {"_id": 0}))  # Exclude MongoDB ID
+    return jsonify({"artworks": artworks})
 
 if __name__ == "__main__":
     app.run(debug=True)
