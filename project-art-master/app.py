@@ -10,7 +10,7 @@ app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
 # ---------------------- MongoDB Connection ----------------------
-MONGO_URI = "mongodb+srv://Karthik:karthik@cluster0.0fbrm.mongodb.net/"
+MONGO_URI = ""
 
 # Connect to MongoDB Atlas
 client = pymongo.MongoClient(MONGO_URI)
