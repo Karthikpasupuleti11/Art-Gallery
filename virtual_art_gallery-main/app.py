@@ -5,6 +5,17 @@ import os
 import base64
 import pandas as pd
 app = Flask(__name__)
+CORS(app)  # Enable CORS for all routes
+
+# ---------------------- MongoDB Connection ----------------------
+MONGO_URI = "mongodb+srv://Karthik:karthik@cluster0.0fbrm.mongodb.net/"
+
+# Connect to MongoDB Atlas
+client = pymongo.MongoClient(MONGO_URI)
+db = client["art_gallery"]
+art_collection = db["artworks"]
+
+print("Connected to MongoDB Atlas!")
 
 # ---------------------- Helper Functions ----------------------
 def preprocess_image(image_path):
