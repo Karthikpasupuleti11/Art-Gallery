@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-import pymongo
+import psycopg2
 import base64
 import os
 from flask import Flask, render_template, request, jsonify
@@ -9,15 +9,14 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
-# ---------------------- MongoDB Connection ----------------------
-MONGO_URI = "mongodb+srv://Karthik:karthik@cluster0.0fbrm.mongodb.net/"
+# ---------------------- Timescale Cloud DB Connection ----------------------
+TIMESCALE_URI = "postgres://tsdbadmin:kx4pln22km6zgeq4@vmz4l3o5a2.pfr9fn9u33.tsdb.cloud.timescale.com:33819/tsdb?sslmode=require"
 
-# Connect to MongoDB Atlas
-client = pymongo.MongoClient(MONGO_URI)
-db = client["art_gallery"]
-art_collection = db["artworks"]
+# Connect to Timescale Cloud DB
+connection = psycopg2.connect(TIMESCALE_URI)
+cursor = connection.cursor()
 
-print("Connected to MongoDB Atlas!")
+print("Connected to Timescale Cloud DB!")
 
 # ---------------------- Helper Functions ----------------------
 def preprocess_image(image_path):
@@ -100,7 +99,14 @@ def upload_image():
                 uploaded_image_data, dataset_image_paths
             )
 
-            # Store uploaded image metadata in MongoDB
+            # Store uploaded image metadata in TimescaleDB
+            insert_query = """
+            INSERT INTO artworks (filename, image_data, similarity_score)
+            VALUES (%s, %s, %s);
+            """
+            cursor.execute(insert_query, (uploaded_file.filename, uploaded_image_base64, similarity_score))
+            connection.commit()
+            print("Image metadata stored in TimescaleDB!")
             uploaded_image_base64 = base64.b64encode(uploaded_image_data).decode('utf-8')
             image_metadata = {
                 "filename": uploaded_file.filename,
@@ -123,7 +129,9 @@ def upload_image():
 @app.route("/get_images", methods=["GET"])
 def get_images():
     """Fetch stored artworks from MongoDB."""
-    artworks = list(art_collection.find({}, {"_id": 0}))  # Exclude MongoDB ID
+    cursor.execute("SELECT filename, image_data, similarity_score FROM artworks;")
+    artworks = cursor.fetchall()
+    artworks = [{"filename": row[0], "image_data": row[1], "similarity_score": row[2]} for row in artworks]
     return jsonify({"artworks": artworks})
 
 if __name__ == "__main__":
